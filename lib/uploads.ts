@@ -1,4 +1,3 @@
-import { put } from "@vercel/blob";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 
@@ -24,19 +23,6 @@ export async function saveProjectImage(file: File): Promise<string> {
   const ext = ALLOWED_TYPES.get(file.type) ?? "jpg";
   const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}.${ext}`;
   const buffer = Buffer.from(await file.arrayBuffer());
-
-  if (process.env.BLOB_READ_WRITE_TOKEN) {
-    const blob = await put(`projects/${filename}`, buffer, {
-      access: "public",
-      contentType: file.type,
-      token: process.env.BLOB_READ_WRITE_TOKEN,
-    });
-    return blob.url;
-  }
-
-  if (process.env.VERCEL) {
-    throw new Error("BLOB_READ_WRITE_TOKEN environment variable is required on Vercel");
-  }
 
   await mkdir(UPLOAD_DIR, { recursive: true });
   await writeFile(path.join(UPLOAD_DIR, filename), buffer);

@@ -26,86 +26,97 @@ function normalizeProject(project: Partial<Project>): Project {
 }
 
 export async function readContent(): Promise<SiteContent> {
-  try {
-    const db = await getDb();
+  const db = getDb();
 
-    const teamResult = await db.execute({
-      sql: "SELECT id, first_name, last_name, role, image, social FROM team_members ORDER BY sort_order ASC",
-    });
+  const teamRows = db
+    .prepare(
+      "SELECT id, first_name, last_name, role, image, social FROM team_members ORDER BY sort_order ASC",
+    )
+    .all() as {
+    id: string;
+    first_name: string;
+    last_name: string;
+    role: string;
+    image: string;
+    social: string;
+  }[];
 
-    const projectResult = await db.execute({
-      sql: "SELECT id, title, description, image, tags, href FROM projects ORDER BY sort_order ASC",
-    });
+  const projectRows = db
+    .prepare(
+      "SELECT id, title, description, image, tags, href FROM projects ORDER BY sort_order ASC",
+    )
+    .all() as {
+    id: string;
+    title: string;
+    description: string;
+    image: string;
+    tags: string;
+    href: string;
+  }[];
 
-    const teamRows = teamResult.rows;
-    const projectRows = projectResult.rows;
+  const team =
+    teamRows.length > 0
+      ? teamRows.map(rowToTeamMember)
+      : defaultContent.team.map((member) => normalizeMember(member));
 
-    const team =
-      teamRows.length > 0
-        ? teamRows.map((row) => rowToTeamMember(row))
-        : defaultContent.team.map((member) => normalizeMember(member));
+  const projects =
+    projectRows.length > 0
+      ? projectRows.map(rowToProject)
+      : defaultContent.projects.map((project) => normalizeProject(project));
 
-    const projects =
-      projectRows.length > 0
-        ? projectRows.map((row) => rowToProject(row))
-        : defaultContent.projects.map((project) => normalizeProject(project));
-
-    return {
-      copy: await readSiteCopyFromDb(),
-      team,
-      projects,
-    };
-  } catch (error) {
-    console.error("readContent fallback:", error);
-    return defaultContent;
-  }
+  return {
+    copy: readSiteCopyFromDb(),
+    team,
+    projects,
+  };
 }
 
 export async function writeContent(content: SiteContent): Promise<void> {
-  const db = await getDb();
+  const db = getDb();
 
-  const statements = [
-    {
-      sql: "INSERT INTO site_copy (id, data) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data",
-      args: [JSON.stringify(content.copy)],
-    },
-    { sql: "DELETE FROM team_members", args: [] as string[] },
-    { sql: "DELETE FROM projects", args: [] as string[] },
-  ];
+  const save = db.transaction(() => {
+    db.prepare(
+      "INSERT INTO site_copy (id, data) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data",
+    ).run(JSON.stringify(content.copy));
 
-  content.team.forEach((member, index) => {
-    const normalized = normalizeMember(member);
-    statements.push({
-      sql: `INSERT INTO team_members (id, first_name, last_name, role, image, social, sort_order)
-            VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      args: [
-        normalized.id,
-        normalized.firstName,
-        normalized.lastName,
-        JSON.stringify(normalized.role),
-        normalized.image,
-        JSON.stringify(normalized.social ?? {}),
-        String(index),
-      ],
+    db.prepare("DELETE FROM team_members").run();
+    const insertMember = db.prepare(`
+      INSERT INTO team_members (id, first_name, last_name, role, image, social, sort_order)
+      VALUES (@id, @firstName, @lastName, @role, @image, @social, @sortOrder)
+    `);
+
+    content.team.forEach((member, index) => {
+      const normalized = normalizeMember(member);
+      insertMember.run({
+        id: normalized.id,
+        firstName: normalized.firstName,
+        lastName: normalized.lastName,
+        role: JSON.stringify(normalized.role),
+        image: normalized.image,
+        social: JSON.stringify(normalized.social ?? {}),
+        sortOrder: index,
+      });
+    });
+
+    db.prepare("DELETE FROM projects").run();
+    const insertProject = db.prepare(`
+      INSERT INTO projects (id, title, description, image, tags, href, sort_order)
+      VALUES (@id, @title, @description, @image, @tags, @href, @sortOrder)
+    `);
+
+    content.projects.forEach((project, index) => {
+      const normalized = normalizeProject(project);
+      insertProject.run({
+        id: normalized.id,
+        title: JSON.stringify(normalized.title),
+        description: JSON.stringify(normalized.description),
+        image: normalized.image,
+        tags: JSON.stringify(normalized.tags),
+        href: normalized.href,
+        sortOrder: index,
+      });
     });
   });
 
-  content.projects.forEach((project, index) => {
-    const normalized = normalizeProject(project);
-    statements.push({
-      sql: `INSERT INTO projects (id, title, description, image, tags, href, sort_order)
-            VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      args: [
-        normalized.id,
-        JSON.stringify(normalized.title),
-        JSON.stringify(normalized.description),
-        normalized.image,
-        JSON.stringify(normalized.tags),
-        normalized.href,
-        String(index),
-      ],
-    });
-  });
-
-  await db.batch(statements, "write");
+  save();
 }
