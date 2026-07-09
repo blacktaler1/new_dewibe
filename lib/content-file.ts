@@ -26,34 +26,39 @@ function normalizeProject(project: Partial<Project>): Project {
 }
 
 export async function readContent(): Promise<SiteContent> {
-  const db = await getDb();
+  try {
+    const db = await getDb();
 
-  const teamResult = await db.execute({
-    sql: "SELECT id, first_name, last_name, role, image, social FROM team_members ORDER BY sort_order ASC",
-  });
+    const teamResult = await db.execute({
+      sql: "SELECT id, first_name, last_name, role, image, social FROM team_members ORDER BY sort_order ASC",
+    });
 
-  const projectResult = await db.execute({
-    sql: "SELECT id, title, description, image, tags, href FROM projects ORDER BY sort_order ASC",
-  });
+    const projectResult = await db.execute({
+      sql: "SELECT id, title, description, image, tags, href FROM projects ORDER BY sort_order ASC",
+    });
 
-  const teamRows = teamResult.rows;
-  const projectRows = projectResult.rows;
+    const teamRows = teamResult.rows;
+    const projectRows = projectResult.rows;
 
-  const team =
-    teamRows.length > 0
-      ? teamRows.map((row) => rowToTeamMember(row))
-      : defaultContent.team.map((member) => normalizeMember(member));
+    const team =
+      teamRows.length > 0
+        ? teamRows.map((row) => rowToTeamMember(row))
+        : defaultContent.team.map((member) => normalizeMember(member));
 
-  const projects =
-    projectRows.length > 0
-      ? projectRows.map((row) => rowToProject(row))
-      : defaultContent.projects.map((project) => normalizeProject(project));
+    const projects =
+      projectRows.length > 0
+        ? projectRows.map((row) => rowToProject(row))
+        : defaultContent.projects.map((project) => normalizeProject(project));
 
-  return {
-    copy: await readSiteCopyFromDb(),
-    team,
-    projects,
-  };
+    return {
+      copy: await readSiteCopyFromDb(),
+      team,
+      projects,
+    };
+  } catch (error) {
+    console.error("readContent fallback:", error);
+    return defaultContent;
+  }
 }
 
 export async function writeContent(content: SiteContent): Promise<void> {

@@ -6,7 +6,12 @@ export const dynamic = "force-dynamic";
 
 export default async function Home() {
   const content = await readContent();
-  await trackPageView();
+
+  try {
+    await trackPageView();
+  } catch (error) {
+    console.error("trackPageView failed:", error);
+  }
 
   return <HomePage content={content} />;
 }
