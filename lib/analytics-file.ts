@@ -10,14 +10,15 @@ function dateKey(date = new Date()) {
   return date.toISOString().slice(0, 10);
 }
 
-function readPageViews(): Record<string, number> {
-  const rows = getDb()
-    .prepare("SELECT date, count FROM page_views")
-    .all() as { date: string; count: number }[];
+async function readPageViews(): Promise<Record<string, number>> {
+  const db = await getDb();
+  const result = await db.execute({
+    sql: "SELECT date, count FROM page_views",
+  });
 
   const views: Record<string, number> = {};
-  for (const row of rows) {
-    views[row.date] = row.count;
+  for (const row of result.rows) {
+    views[String(row.date)] = Number(row.count);
   }
   return views;
 }
@@ -125,15 +126,14 @@ async function buildAnalyticsData() {
 }
 
 export async function trackPageView(): Promise<void> {
-  const db = getDb();
+  const db = await getDb();
   const key = dateKey();
 
-  db.prepare(
-    `
-    INSERT INTO page_views (date, count) VALUES (?, 1)
-    ON CONFLICT(date) DO UPDATE SET count = count + 1
-  `,
-  ).run(key);
+  await db.execute({
+    sql: `INSERT INTO page_views (date, count) VALUES (?, 1)
+          ON CONFLICT(date) DO UPDATE SET count = count + 1`,
+    args: [key],
+  });
 }
 
 export async function getAnalyticsStats(): Promise<AnalyticsStats> {

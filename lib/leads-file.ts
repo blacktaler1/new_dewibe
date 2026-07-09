@@ -2,45 +2,34 @@ import { getDb, rowToLead } from "./db";
 import type { Lead } from "./types";
 
 export async function readLeads(): Promise<Lead[]> {
-  const rows = getDb()
-    .prepare(
-      "SELECT id, name, email, message, created_at, read FROM leads ORDER BY created_at DESC",
-    )
-    .all() as {
-    id: string;
-    name: string;
-    email: string;
-    message: string;
-    created_at: string;
-    read: number;
-  }[];
+  const db = await getDb();
+  const result = await db.execute({
+    sql: "SELECT id, name, email, message, created_at, read FROM leads ORDER BY created_at DESC",
+  });
 
-  return rows.map(rowToLead);
+  return result.rows.map((row) => rowToLead(row));
 }
 
 export async function writeLeads(leads: Lead[]): Promise<void> {
-  const db = getDb();
+  const db = await getDb();
+  const statements = [{ sql: "DELETE FROM leads", args: [] as string[] }];
 
-  const save = db.transaction(() => {
-    db.prepare("DELETE FROM leads").run();
-    const insert = db.prepare(`
-      INSERT INTO leads (id, name, email, message, created_at, read)
-      VALUES (@id, @name, @email, @message, @createdAt, @read)
-    `);
+  for (const lead of leads) {
+    statements.push({
+      sql: `INSERT INTO leads (id, name, email, message, created_at, read)
+            VALUES (?, ?, ?, ?, ?, ?)`,
+      args: [
+        lead.id,
+        lead.name,
+        lead.email,
+        lead.message,
+        lead.createdAt,
+        lead.read ? "1" : "0",
+      ],
+    });
+  }
 
-    for (const lead of leads) {
-      insert.run({
-        id: lead.id,
-        name: lead.name,
-        email: lead.email,
-        message: lead.message,
-        createdAt: lead.createdAt,
-        read: lead.read ? 1 : 0,
-      });
-    }
-  });
-
-  save();
+  await db.batch(statements, "write");
 }
 
 export async function addLead(
@@ -53,17 +42,17 @@ export async function addLead(
     read: false,
   };
 
-  getDb()
-    .prepare(
-      "INSERT INTO leads (id, name, email, message, created_at, read) VALUES (?, ?, ?, ?, ?, 0)",
-    )
-    .run(
+  const db = await getDb();
+  await db.execute({
+    sql: "INSERT INTO leads (id, name, email, message, created_at, read) VALUES (?, ?, ?, ?, ?, 0)",
+    args: [
       newLead.id,
       newLead.name,
       newLead.email,
       newLead.message,
       newLead.createdAt,
-    );
+    ],
+  });
 
   return newLead;
 }
