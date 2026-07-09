@@ -1,0 +1,19 @@
+:root {
+  --bg-color: #030305;
+  --text-primary: #ffffff;
+  --text-secondary: #d5d5d5;
+  --accent-color: #8a63f8;
+  --success-color: #00ff88;
+  --glass-bg: rgba(20, 20, 25, 0.4);
+  --glass-border: rgba(255, 255, 255, 0.08);
+
+  --accent-gradient: linear-gradient(135deg, #8a63f8 0%, #5c43fa 100%);
+  --accent-gradient-hover: linear-gradient(135deg, #9c7afa 0%, #6d56fb 100%);
+  --accent-text-gradient: linear-gradient(90deg, #9c7afa 0%, #5a8cff 100%);
+  --video-overlay-gradient: linear-gradient(
+    180deg,
+    rgba(3, 3, 5, 0.55) 0%,
+    rgba(3, 3, 5, 0.35) 45%,
+    rgba(3, 3, 5, 0.6) 100%
+  );
+}

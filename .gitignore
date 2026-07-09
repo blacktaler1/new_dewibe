@@ -39,3 +39,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# sqlite database
+data/dewibe.db
+data/dewibe.db-wal
+data/dewibe.db-shm
+
+# uploaded images
+public/uploads/projects/*
+!public/uploads/projects/.gitkeep
